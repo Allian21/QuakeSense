@@ -1,33 +1,96 @@
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { db } from '../../firebaseCfg';
+import { ref, onValue, get } from 'firebase/database';
 
-const data = [
-  { magnitude: 5.8, date: '1/1/2024 4:12 AM' },
-  { magnitude: 6.1, date: '12/5/2023 2:47 PM' },
-  { magnitude: 4.9, date: '9/10/2023 10:15 AM' },
-  { magnitude: 6.5, date: '7/8/2023 3:00 PM' },
-  { magnitude: 5.0, date: '3/3/2023 1:00 AM' },
-  { magnitude: 4.8, date: '1/1/2023 8:00 PM' },
-  { magnitude: 6.2, date: '11/12/2022 2:00 PM' },
-];
+// Classification function
+function classifyMagnitude(Mw: number) {
+  if (Mw < 2.0) return "Micro";
+  else if (Mw < 3.0) return "Minor";
+  else if (Mw < 4.0) return "Light";
+  else if (Mw < 5.0) return "Moderate";
+  else if (Mw < 6.0) return "Strong";
+  else if (Mw < 7.0) return "Major";
+  else return "Great";
+}
 
 export default function HistoryScreen() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async () => {
+    setRefreshing(true);
+    const earthquakesRef = ref(db, 'earthquake/events');
+    const snapshot = await get(earthquakesRef);
+    const val = snapshot.val();
+    if (val) {
+      const arr = Object.values(val);
+      setData(arr.reverse());
+    } else {
+      setData([]);
+    }
+    setRefreshing(false);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+    // Also listen for live updates
+    const earthquakesRef = ref(db, 'earthquake/events');
+    const unsubscribe = onValue(earthquakesRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        const arr = Object.values(val);
+        setData(arr.reverse());
+      } else {
+        setData([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleItemPress = (item: any) => {
+    Alert.alert(
+      `Earthquake Details`,
+      `Magnitude: ${Number(item.magnitude).toFixed(1)}\nClassification: ${item.classification || classifyMagnitude(item.magnitude)}\nTime: ${item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : ''}`,
+      [{ text: 'OK' }]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Full Earthquake History</Text>
-      <Text style={styles.subtitle}>All recorded events</Text>
-
-      <FlatList
-        data={data}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.historyItem}>
-            <Text style={styles.historyText}>{item.magnitude} Magnitude</Text>
-            <Text style={styles.historyDate}>{item.date}</Text>
-          </View>
-        )}
-      />
-
+      <Text style={styles.subtitle}>All recorded events (pull down to refresh, tap for details)</Text>
+      {loading ? (
+        <ActivityIndicator size="large" color="#4A90E2" />
+      ) : (
+        <FlatList
+          data={data}
+          keyExtractor={(_, index) => index.toString()}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={fetchData} colors={['#4A90E2']} />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.historyItem}
+              activeOpacity={0.8}
+              onPress={() => handleItemPress(item)}
+            >
+              <Text style={styles.historyText}>
+                Magnitude {Number(item.magnitude).toFixed(1)}
+              </Text>
+              <Text style={styles.historyDate}>
+                {item.timestamp
+                  ? new Date(item.timestamp * 1000).toLocaleString()
+                  : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
+        />
+      )}
       <TouchableOpacity style={styles.button} onPress={() => router.push('/')}>
         <Text style={styles.buttonText}>Back to Home</Text>
       </TouchableOpacity>
@@ -59,6 +122,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 12,
     marginBottom: 12,
+    backgroundColor: '#f4faff',
   },
   historyText: {
     fontSize: 18,
