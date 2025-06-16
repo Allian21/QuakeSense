@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 const { height } = Dimensions.get('window');
 
 const data = [
-  { magnitude: 5.8, date: '1/1/2024 4:12 AM' },
+  { magnitude: 5.9, date: '1/1/2024 4:12 AM' },
   { magnitude: 6.1, date: '12/5/2023 2:47 PM' },
   { magnitude: 4.9, date: '9/10/2023 10:15 AM' },
   { magnitude: 6.5, date: '7/8/2023 3:00 PM' },
@@ -35,9 +35,11 @@ export default function HomeScreen() {
       </LinearGradient>
 
       {/* Bottom Half - History Card */}
-      <View style={styles.historyCard}>
-        <Text style={styles.historyTitle}>History</Text>
-        <Text style={styles.subtext}>Last Earthquakes</Text>
+    <View style={styles.historyCard}>
+      <View style={styles.historyHeader}>
+      <Text style={styles.historyTitle}>History</Text>
+      <Text style={styles.subtext}>Past Earthquakes</Text>
+  </View>
 
         <FlatList
           data={data}
@@ -61,6 +63,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  historyHeader: {
+    marginLeft: 30,   
+    marginBottom: 12, 
+  },
   container: {
     flex: 1,
   },
@@ -73,13 +79,12 @@ const styles = StyleSheet.create({
   magnitudeLabel: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#003B4D',
-    marginBottom: 10,
+    color: '#FFFFFF',
+    marginBottom: 1,
   },
   magnitudeValue: {
-    fontSize: 100,
-    fontWeight: 'bold',
-    color: '#003B4D',
+    fontSize: 200,
+    color: '#FFFFFF'
   },
   historyCard: {
     height: height * 0.5,
@@ -88,7 +93,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 40,
     paddingHorizontal: 24,
     paddingTop: 20,
-    marginTop: -40, // to slightly overlap
+    marginTop: -40, 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.1,
@@ -96,8 +101,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   historyTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 40,
+  
     marginBottom: 4,
     color: '#000',
   },
@@ -107,19 +112,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   historyItem: {
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 24,
-    marginBottom: 12,
-  },
+    backgroundColor: '#fff',
+    borderRadius: 32,         
+    paddingVertical: 20,      
+    paddingHorizontal: 24,    
+    marginBottom: 16,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+},
   historyText: {
-    fontSize: 18,
+    fontSize: 30,
     fontWeight: '500',
     color: '#000',
+    marginBottom: 2,
   },
   historyDate: {
-    fontSize: 14,
+    fontSize: 17,
     color: '#555',
   },
   buttonContainer: {
