@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,21 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Animated,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { db } from '../../firebaseCfg';
 import { ref, onValue } from 'firebase/database';
+import * as Notifications from 'expo-notifications';
 
 const { height } = Dimensions.get('window');
+
+type EarthquakeEvent = {
+  magnitude: number;
+  timestamp?: number;
+  classification?: string;
+};
 
 function classifyMagnitude(Mw: number) {
   if (Mw < 2.0) return "Micro";
@@ -29,26 +37,78 @@ function classifyMagnitude(Mw: number) {
 }
 
 export default function HomeScreen() {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<EarthquakeEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [pulseAnim] = useState(new Animated.Value(1));
+  const [lastEventId, setLastEventId] = useState<string | null>(null);
+
+  // Notification listeners (optional, for completeness)
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
+
+  useEffect(() => {
+    Notifications.requestPermissionsAsync();
+
+    notificationListener.current = Notifications.addNotificationReceivedListener(() => {
+      // handle notification received in foreground if needed
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {
+      // handle notification response
+    });
+
+    return () => {
+      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
+      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
 
   useEffect(() => {
     const earthquakesRef = ref(db, 'earthquake/events');
     const unsubscribe = onValue(earthquakesRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        const arr = Object.values(val);
-        setData(arr.reverse());
+        // arr: [ [id, data], ... ]
+        const arr = Object.entries(val).reverse() as [string, EarthquakeEvent][];
+        setData(arr.map(([_, v]) => v));
+        const [latestId, latestEvent] = arr[0];
+
+        // Only show alert if this is a new event
+        if (lastEventId && latestId !== lastEventId) {
+          // In-app alert for any new event
+          Alert.alert(
+            "New Earthquake Detected",
+            `Magnitude ${Number(latestEvent.magnitude).toFixed(1)} at ${latestEvent.timestamp ? new Date(latestEvent.timestamp * 1000).toLocaleString() : ''}`
+          );
+
+          // Push notification for strong/major
+          if (latestEvent.magnitude >= 5 && latestEvent.magnitude < 6) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: "Warning: Strong Earthquake",
+                body: `Magnitude ${Number(latestEvent.magnitude).toFixed(1)}. Be cautious of visible damage around you and get away from dangerous areas.`,
+              },
+              trigger: null,
+            });
+          } else if (latestEvent.magnitude >= 6) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: "Evacuate Immediately!",
+                body: `Magnitude ${Number(latestEvent.magnitude).toFixed(1)}. Evacuate quickly away from buildings. Do not stay indoors!`,
+              },
+              trigger: null,
+            });
+          }
+        }
+        setLastEventId(latestId);
       } else {
         setData([]);
       }
       setLoading(false);
-      setRefreshing(false);
     });
     return () => unsubscribe();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEventId]);
 
   // Pulse animation for magnitude
   useEffect(() => {
@@ -73,16 +133,6 @@ export default function HomeScreen() {
     latest && latest.magnitude !== undefined
       ? Number(latest.magnitude).toFixed(1)
       : '-';
-  const latestClassification =
-    latest && latest.magnitude !== undefined
-      ? classifyMagnitude(latest.magnitude)
-      : '';
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    setLoading(true);
-    // The onValue listener will handle updating data and loading state
-  };
 
   return (
     <View style={styles.container}>
@@ -122,13 +172,13 @@ export default function HomeScreen() {
             keyExtractor={(_, index) => index.toString()}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 40 }}
-            // Removed refreshing and onRefresh props
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.historyItem}
                 activeOpacity={0.8}
                 onPress={() =>
-                  alert(
+                  Alert.alert(
+                    `Earthquake Details`,
                     `Magnitude: ${Number(item.magnitude).toFixed(1)}\nClassification: ${item.classification || classifyMagnitude(item.magnitude)}\nTime: ${item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : ''}`
                   )
                 }
